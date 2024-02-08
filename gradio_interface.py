@@ -16,15 +16,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def user(query, chatbot):
-    """Adds user's query immediately to the chat."""
-    return "", chatbot + [[query, None]]
-
-
-def get_answer(history):
-    query = history[-1][0]
-    history[-1][1] = ""
-    history[-1][1] = "Plan for the task:"
+def get_answer(query: str, completion_string: str):
+    completion_string = "Plan for the task:"
 
     start = time.time()
     plan, error = api_function_call(
@@ -36,25 +29,23 @@ def get_answer(history):
 
     for task in plan:
         obj = task.model_dump_json(indent=2)
-        history[-1][1] = "Plan for the task:\n" + str(obj)
-        yield history
+        completion_string = "Plan for the task:\n" + str(obj)
+        yield completion_string
 
     end_first_call = time.time()
-    history[-1][
-        1
-    ] += f"\ntime taken for first API call: {end_first_call - start:0.2f} sec\n"
+    completion_string += (
+        f"\ntime taken for first API call: {end_first_call - start:0.2f} sec\n"
+    )
 
     if task.query_validation.is_valid is False:
-        history[-1][1] += "\nThe query is not valid"
-        yield history
+        completion_string += "\nThe query is not valid"
+        yield completion_string
         return
 
     start_execution = time.time()
     result = task.execute_code()
     end_execution = time.time()
-    history[-1][
-        1
-    ] += (
+    completion_string += (
         f"time taken for python execution: {end_execution - start_execution:0.2f} sec\n"
     )
 
@@ -75,17 +66,17 @@ def get_answer(history):
             stream=True,
         )
 
-        history[-1][1] += "\n"
+        completion_string += "\n"
         for token in response:
-            history[-1][1] += token
-            yield history
+            completion_string += token
+            yield completion_string
 
         end = time.time()
-        history[-1][
-            1
-        ] += f"\ntime taken for second API call: {end - start_second_call:0.2f} sec"
-        history[-1][1] += f"\ntime taken for whole process: {end - start:0.2f} sec"
-        yield history
+        completion_string += (
+            f"\ntime taken for second API call: {end - start_second_call:0.2f} sec"
+        )
+        completion_string += f"\ntime taken for whole process: {end - start:0.2f} sec"
+        yield completion_string
 
 
 example_questions = [
@@ -117,35 +108,12 @@ example_questions = [
 ]
 
 
-with gr.Blocks() as demo:
-    with gr.Row():
-        gr.HTML(
-            "<h3><center>BETA - Towards AI 🤖: A Question-Answering Bot for anything AI-jobs related</center></h3>"
-        )
-    latest_completion = gr.State()
-    chatbot = gr.Chatbot(elem_id="chatbot", show_copy_button=True)
-    with gr.Row():
-        query = gr.Textbox(
-            label="What's your question?",
-            placeholder="Ask a question here...",
-            lines=1,
-        )
-        submit = gr.Button(value="Send", variant="secondary")
-    with gr.Row():
-        examples = gr.Examples(
-            examples=example_questions,
-            inputs=query,
-        )
-    completion = gr.State()
-
-    submit.click(
-        user,
-        [query, chatbot],
-        [query, chatbot],
-    ).then(get_answer, inputs=[chatbot], outputs=[chatbot])
-    query.submit(user, [query, chatbot], [query, chatbot]).then(
-        get_answer, inputs=[chatbot], outputs=[chatbot]
+chatbot = gr.Chatbot(show_copy_button=True)
+with gr.Blocks(fill_height=True) as demo:
+    gr.HTML(
+        "<h3><center>BETA - Towards AI 🤖: A Question-Answering Bot for anything AI-jobs related</center></h3>"
     )
+    gr.ChatInterface(get_answer, chatbot=chatbot, examples=example_questions)
 
 demo.queue()
 demo.launch(debug=False, share=False, max_threads=CONCURRENCY_COUNT)
