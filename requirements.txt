@@ -1,0 +1,16 @@
+# git+https://github.com/gradio-app/gradio@main
+gradio
+openai
+python-dotenv
+pandas
+pyarrow
+instructor
+pydantic
+tiktoken
+ipykernel
+SQLAlchemy
+llama-index
+langchain
+git+https://github.com/towardsai/buster@async_client
+cohere
+numpy
