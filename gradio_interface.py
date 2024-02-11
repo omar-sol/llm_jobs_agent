@@ -16,70 +16,69 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def get_answer(query: str, completion_string: str):
-    completion_string = "Plan for the task:"
-
+def get_answer(query: str, chatbot):
     start = time.time()
-    plan, error = api_function_call(
-        system_message=cg.system_message,
+
+    query_validation, error = api_function_call(
+        system_message=cg.system_message_validation,
         query=query,
-        response_model=instructor.Partial[cg.TaskPlan],
-        stream=True,
+        model="gpt-3.5-turbo-0125",
+        response_model=cg.QueryValidation,
     )
+    end_validation = time.time()
 
-    for task in plan:
-        obj = task.model_dump_json(indent=2)
-        completion_string = "Plan for the task:\n" + str(obj)
-        yield completion_string
-
-    end_first_call = time.time()
-    completion_string += (
-        f"\ntime taken for first API call: {end_first_call - start:0.2f} sec\n"
+    completion_string = "Validating query:\n" + query_validation.model_dump_json(
+        indent=2
     )
+    completion_string += f"\ntime taken for validation call: {end_validation - start:0.2f} sec\n\n Generating a plan ..."
+    yield completion_string
 
-    if task.query_validation.is_valid is False:
+    if query_validation.is_valid is False:
         completion_string += "\nThe query is not valid"
         yield completion_string
         return
 
-    start_execution = time.time()
-    result = task.execute_code()
-    end_execution = time.time()
-    completion_string += (
-        f"time taken for python execution: {end_execution - start_execution:0.2f} sec\n"
+    start_plan = time.time()
+    plan, error = api_function_call(
+        system_message=cg.system_message_plan,
+        query=query,
+        # response_model=instructor.Partial[cg.TaskPlan],
+        response_model=cg.TaskPlan,
+        stream=False,
+    )
+    completion_string += "\nPlan for the task:\n" + plan.model_dump_json(indent=2)
+    end_plan = time.time()
+    completion_string += f"\ntime taken for plan call and python execution: {end_plan - start_plan:0.2f} sec\n\n"
+
+    input = (
+        f"user_question: {query} \n"
+        + f"python_code: {plan.code_to_execute}"
+        + f"repl_output: {plan.result} \n"
     )
 
-    if "Error" in result or "Exception" in result:
-        logger.error(f"An error occurred: {result}")
-    else:
-        input = (
-            f"user_question: {query} \n"
-            + f"python_code: {task.code_to_execute}"
-            + f"repl_output: {result} \n"
-        )
+    start_second_call = time.time()
+    response, error = api_function_call(
+        system_message=cg.system_message_synthesiser,
+        query=input,
+        model="gpt-3.5-turbo-0125",
+        stream=True,
+    )
 
-        start_second_call = time.time()
-        response, error = api_function_call(
-            system_message=cg.system_message_synthesiser,
-            query=input,
-            model="gpt-3.5-turbo-0125",
-            stream=True,
-        )
-
-        completion_string += "\n"
-        for token in response:
-            completion_string += token
-            yield completion_string
-
-        end = time.time()
-        completion_string += (
-            f"\ntime taken for second API call: {end - start_second_call:0.2f} sec"
-        )
-        completion_string += f"\ntime taken for whole process: {end - start:0.2f} sec"
+    completion_string += "\n\nAnswering the user query:\n"
+    for token in response:
+        completion_string += token
         yield completion_string
+
+    end = time.time()
+    completion_string += (
+        f"\n\ntime taken for answer call: {end - start_second_call:0.2f} sec"
+    )
+    completion_string += f"\ntime taken for whole process: {end - start:0.2f} sec"
+    yield completion_string
 
 
 example_questions = [
+    "Compare the skills needed for an LLM engineer to a machine learning engineer",
     "What are the skills required for a senior computer vision engineer, and how does that compare to a junior engineer?",
     "What is the meaning of life?",
     "What is the average salary of junior data scientists",
@@ -108,12 +107,11 @@ example_questions = [
 ]
 
 
-chatbot = gr.Chatbot(show_copy_button=True)
+chatbot = gr.Chatbot(show_copy_button=True, scale=2)
 with gr.Blocks(fill_height=True) as demo:
-    gr.HTML(
-        "<h3><center>BETA - Towards AI 🤖: A Question-Answering Bot for anything AI-jobs related</center></h3>"
+    gr.ChatInterface(
+        get_answer, chatbot=chatbot, examples=example_questions, fill_height=True
     )
-    gr.ChatInterface(get_answer, chatbot=chatbot, examples=example_questions)
 
 demo.queue()
 demo.launch(debug=False, share=False, max_threads=CONCURRENCY_COUNT)

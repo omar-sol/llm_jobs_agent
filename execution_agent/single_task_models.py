@@ -1,72 +1,18 @@
 import logging
+from typing_extensions import Annotated
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from langchain.utilities.python import PythonREPL
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-system_message_synthesiser = """- You are a world-class job counselor—your task is to understand the user question and give complete, helpful, and friendly answers.
-- To help you answer the user question, you will be given the code that was executed by a `python_repl` tool and its results. That way you can also explain how the result was computed. The code used a Python Pandas Dataframe containing job listings data.
-- If the question asks about a list of jobs, please return a maximum of the ten first jobs with a short answer as to why they were selected. While listing the jobs, also, provide the full jobs_towardsai_url link for each of them so users can access the job listing themselves.
-"""
 
-
-system_message = """You are a world-class task-planning algorithm and developer capable of breaking down user questions into a list of tasks.
-You have a Pandas dataframe at your disposal. Remember that some values might be `None` or `NaN`.
-The name of the dataframe is `df.` and every value is lowercase.
-
-Here are more details about the Dataframe, along with the ways you can filter each column, either `precise` or `semantic`:
-<class 'pandas.core.frame.DataFrame'>
-RangeIndex: 10609 entries, 0 to 10608
-Data columns (total 22 columns):
- #   Column                      Non-Null Count  Dtype  Type of filtering 
----  ------                      --------------  -----  -----------------
- 0   job_title                   10609 non-null  object  semantic
- 1   job_skills                  10609 non-null  object  semantic
- 2   apply_url                   10609 non-null  object  precise
- 3   city                        9090 non-null   object  semantic
- 4   country                     9863 non-null   object  semantic
- 5   company_id                  10609 non-null  float64 precise
- 6   involves_ai                 10609 non-null  bool    precise 
- 7   jobs_towardsai_url          10609 non-null  object  precise
- 8   job_listing_text            10609 non-null  object  semantic
- 9   company_name                10608 non-null  object  precise
- 10  company_info                10609 non-null  object  semantic
- 11  role_description            10608 non-null  object  semantic
- 12  preferred_skills            6912 non-null   object  semantic
- 13  salary_currency             3238 non-null   object  precise
- 14  job_type_answer             8568 non-null   object  precise
- 15  experience_years            4360 non-null   float64 precise
- 16  experience_level            2792 non-null   object  precise
- 17  regions_or_states           3613 non-null   object  semantic
- 18  location_based_eligibility  1152 non-null   object  semantic
- 19  remote_answer               5981 non-null   object  precise
- 20  salary_min                  2886 non-null   float64 precise
- 21  salary_max                  2886 non-null   float64 precise
-dtypes: bool(1), float64(4), object(17)
-memory usage: 1.7+ MB
-None
-(10609, 22)
-
-Here are the only valid values for some columns, which you can use to filter in a precise way: 
-remote_answer: Literal["remote", "hybrid", "onsite"]
-job_type_answer: Literal["full-time", "part-time", "contract", "internship", "freelance", "temporary", "other"]
-experience_level: Literal["senior", "mid-level", "entry-level"]
-
-Here are some rules to follow:
-- You must use a print statement to display the output code. 
-- If users ask for a list of jobs (rows in the dataframe), only include the relevant columns in the print statement. Always include the `jobs_towardsai_url` column. 
-- Never print the values in the `job_listing_text` column as it is too long.
-- When computing over salary values, group computations over the same currency by checking the `salary_currency` column.
-- Check the currency with the `salary_currency` column if the question involves a salary computation.
-- When computing over numerical values, make sure not to round the values.
-- When filtering for skills, use the 'job_listing_text' column.
-"""
+system_message_validation = """You are a world-class expert that know about every job in a job board. You can provide guidance and answer questions, but first you need to validate if the query is in context of jobs in general. So queries about skills, salaries, job types, and locations are all valid."""
 
 
 class QueryValidation(BaseModel):
     """
-    Validates the user query. Makes sure the query is related to a job board or for a job counselor?.
+    Validates the user query. Makes sure the query is related to a job board or for a job counselor.
     """
 
     chain_of_thought: str = Field(
@@ -75,6 +21,72 @@ class QueryValidation(BaseModel):
     is_valid: bool = Field(
         description="Based on the previous reasoning, answer with True if the query is related to a job board. Answer False otherwise.",
     )
+    reason: str = Field(
+        description="Explain why the query is valid or not. What are the keywords that make it valid?",
+    )
+
+
+system_message_plan = """You are a world-class task-planning algorithm and developer capable of breaking down user questions into a list of tasks.
+You have a Pandas dataframe at your disposal. Remember that some values might be `None` or `NaN`.
+The name of the dataframe is `df.` and every value is lowercase.
+
+Here are more details about the Dataframe, along with the ways you can filter each column, either `precise` or `semantic`:
+
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 9105 entries, 0 to 9104
+Data columns (total 26 columns):
+ #   Column                Non-Null Count  Dtype   Type of filtering          
+---  ------                --------------  -----   -----------------       
+ 0   job_id                9105 non-null   int64   precise
+ 1   creation_date         9105 non-null   datetime64[ns]  precise
+ 2   job_title             9105 non-null   object  semantic        
+ 3   job_skills            9105 non-null   object  semantic      
+ 4   company_id            9105 non-null   int64   precise       
+ 5   apply_url             9105 non-null   object  precise      
+ 6   city                  7913 non-null   object  semantic      
+ 7   country               8814 non-null   object  semantic      
+ 8   involves_ai           9105 non-null   bool    precise      
+ 9   company_name          9105 non-null   object  precise      
+ 10  job_listing_text      9105 non-null   object  semantic      
+ 11  jobs_towardsai_url    9105 non-null   object  precise      
+ 12  company_info          9105 non-null   object  semantic      
+ 13  role_description      9105 non-null   object  semantic      
+ 14  preferred_skills      6395 non-null   object  semantic      
+ 15  salary_reasoning      8008 non-null   object  precise      
+ 16  salary_frequency      2688 non-null   object  precise      
+ 17  salary_currency       2924 non-null   object  precise      
+ 18  job_type_answer       8073 non-null   object  precise      
+ 19  min_experience_years  5995 non-null   object  precise      
+ 20  regions_or_states     5497 non-null   object  semantic      
+ 21  continent             8178 non-null   object  semantic      
+ 22  experience_level      5519 non-null   object  precise      
+ 23  remote_answer         4494 non-null   object  precise      
+ 24  salary_min            2405 non-null   float64 precise      
+ 25  salary_max            2405 non-null   float64 precise      
+dtypes: bool(1), datetime64[ns](1), float64(2), int64(2), object(20)
+memory usage: 1.7+ MB
+None
+(9105, 26)
+
+Here are the only valid values for some columns, which you can use to filter in a precise way: 
+remote_answer: Literal["remote", "hybrid", "onsite"]
+job_type_answer: Literal["full-time", "part-time", "contract", "internship", "freelance", "temporary", "other"]
+experience_level: Literal["senior", "mid-level", "entry-level"]
+salary_frequency: Literal["hourly", "monthly", "annually", "Not specified"]
+
+
+Here are some rules to follow:
+- You must use a print statement to display the output code. 
+- If users ask for a list of jobs (rows in the dataframe), only include the relevant columns in the print statement but always include the `jobs_towardsai_url` column. 
+- Never print the values in the `job_listing_text` column.
+- When computing over salary values, group computations over the same currency and frequency by checking the `salary_currency` and `salary_frequency` column.
+- Check the currency with the `salary_currency` column if the question involves a salary computation.
+- When computing over numerical values, make sure not to round the values.
+- When filtering for skills with keywords, use the 'job_listing_text' column.
+- For extracting job skills, use the 'job_skills' column.
+- If returning a list of jobs, sort them by `creation_date` and only include the most recent 10 jobs.
+- Extracting job skills, might result in repeated skills, make sure to count them and return the most common skills.
+"""
 
 
 class TaskPlan(BaseModel):
@@ -83,16 +95,29 @@ class TaskPlan(BaseModel):
     - You must use a print statement at the end to display the output but only print the relevant columns if necessary.
     """
 
-    query_validation: QueryValidation
     chain_of_thought: str = Field(
-        description="How will you answer the user_query using the pandas dataframe. Think step-by-step. Write down your chain of thought. Will you print the output? Will the code be without bugs?",
+        description="How will you answer the user_query using the pandas dataframe. Think step-by-step. Write down your chain of thought. Will you print the output? Will the code be free of bugs?",
     )
     code_to_execute: str = Field(
         description="Based on the previous reasoning, write bug-free code for the `python_repl` tool. Make sure to write code without bugs. Avoid import statements.",
     )
     is_code_bug_free: bool = Field(
-        description="Based on the previously generated code, answer with True if the code is safe and will run without issues. Answer False otherwise.",
+        description="Based on the previously generated code, answer with True if the code is safe and will run without issues. Answer False otherwise. Does it have extra indentations?",
     )
+    result: str = Field(
+        default="",
+        description="The result of the code execution. If the code has not been executed yet, leave this field empty.",
+    )
+
+    @model_validator(mode="after")
+    def verify_code(self):
+        result = self.execute_code()
+        if "Error" in result or "Exception" in result:
+            self.is_code_bug_free = False
+            raise ValueError(f"An error occurred: {result}")
+        logger.info(f"code execution result: {result}")
+        self.result = result
+        return self
 
     def execute_code(self) -> str:
         python_repl = PythonREPL()
@@ -102,9 +127,18 @@ pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 30)
 pd.set_option('display.max_colwidth', 400)
 # Load the dataframe
-df = pd.read_pickle('data/extracted_cleaned_df.pkl')
+df = pd.read_pickle('data/extracted_cleaned_df_2.pkl')
 """
         code: str = import_and_load + self.code_to_execute
         logger.info(f"code to execute: {code}")
         result: str = python_repl.run(code)
         return result
+
+
+system_message_synthesiser = """- You are a world-class job counselor—your task is to understand the user question and give complete, helpful, and friendly answers.
+- Use Markdown to format your answer. Use headings, bold, italics, and lists to make your answer easy to read.
+- To help you answer the user question, you will be given the code executed by a `python_repl` tool and its results. The code used a Python Pandas Dataframe containing job listing data.
+- Only provide a link/URL to the job board if the result has a link. Do not create new links/URLs.
+- If the question asks about a list of jobs, please return a maximum of the ten first jobs with a summary. 
+- If you are listing jobs, also provide the jobs_towardsai_url link for each of them so users can access the job listing themselves.
+"""
