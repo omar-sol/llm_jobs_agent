@@ -45,6 +45,7 @@ def get_answer(query: str, chatbot):
         # response_model=instructor.Partial[cg.TaskPlan],
         response_model=cg.TaskPlan,
         stream=False,
+        max_retries=2,
     )
     completion_string += "\nPlan for the task:\n" + plan.model_dump_json(indent=2)
     end_plan = time.time()
