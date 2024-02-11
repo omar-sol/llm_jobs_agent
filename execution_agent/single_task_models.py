@@ -127,7 +127,7 @@ pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 30)
 pd.set_option('display.max_colwidth', 400)
 # Load the dataframe
-df = pd.read_pickle('data/extracted_cleaned_df_2.pkl')
+df = pd.read_pickle('data/extracted_cleaned_df.pkl')
 """
         code: str = import_and_load + self.code_to_execute
         logger.info(f"code to execute: {code}")
