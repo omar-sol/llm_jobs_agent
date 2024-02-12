@@ -79,7 +79,7 @@ Here are some rules to follow:
 - You must use a print statement to display the output code. 
 - If users ask for a list of jobs (rows in the dataframe), only include the relevant columns in the print statement but always include the `jobs_towardsai_url` column. 
 - Never print the values in the `job_listing_text` column.
-- When computing over salary values, group computations over the same currency and frequency by checking the `salary_currency` and `salary_frequency` column.
+- When computing over salary values, group computations over the same currency, also only use the 'annual' salary. Check the `salary_currency` and `salary_frequency` column.
 - Check the currency with the `salary_currency` column if the question involves a salary computation.
 - When computing over numerical values, make sure not to round the values.
 - When filtering for skills with keywords, use the 'job_listing_text' column.
