@@ -111,7 +111,11 @@ example_questions = [
 chatbot = gr.Chatbot(show_copy_button=True, scale=2)
 with gr.Blocks(fill_height=True) as demo:
     gr.ChatInterface(
-        get_answer, chatbot=chatbot, examples=example_questions, fill_height=True
+        get_answer,
+        chatbot=chatbot,
+        examples=example_questions,
+        fill_height=True,
+        title="Jobs Database Chatbot- BETA",
     )
 
 demo.queue()
