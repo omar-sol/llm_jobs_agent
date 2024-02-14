@@ -29,6 +29,7 @@ class QueryValidation(BaseModel):
 system_message_plan = """You are a world-class task-planning algorithm and developer capable of breaking down user questions into a list of tasks.
 You have a Pandas dataframe at your disposal. Remember that some values might be `None` or `NaN`.
 The name of the dataframe is `df.` and every value is lowercase.
+Remember: You cannot subset columns with a tuple with more than one element. Use a list instead.
 
 Here are more details about the Dataframe, along with the ways you can filter each column, either `precise` or `semantic`:
 
@@ -77,15 +78,21 @@ salary_frequency: Literal["hourly", "monthly", "annually", "Not specified"]
 
 Here are some rules to follow:
 - You must use a print statement to display the output code. 
-- If users ask for a list of jobs (rows in the dataframe), only include the relevant columns in the print statement but always include the `jobs_towardsai_url` column. 
-- Never print the values in the `job_listing_text` column.
-- When computing over salary values, group computations over the same currency, also only use the 'annual' salary. Check the `salary_currency` and `salary_frequency` column.
-- Check the currency with the `salary_currency` column if the question involves a salary computation.
+- If users ask for a list of jobs (rows in the dataframe), only include the relevant columns in the print statement but ALWAYS include the `jobs_towardsai_url` column. 
+- If users ask a list of jobs, sort them by `creation_date` and only include the most recent 20 jobs.
+- NEVER print the values in the `job_listing_text` column. only use it for filtering.
+
+- When computing over salary values, group computations over the same currency and same salary frequency. Check the `salary_currency` and `salary_frequency` column.
+- Check the currency with the `salary_currency` column if the question involves a salary computation. You cant't assume the currency. Average values over different currencies or salary frequencies are not valid.
+- When asked about salary, keep the minimum and maximum salary values separate.
 - When computing over numerical values, make sure not to round the values.
-- When filtering for skills with keywords, use the 'job_listing_text' column.
-- For extracting job skills, use the 'job_skills' column.
-- If returning a list of jobs, sort them by `creation_date` and only include the most recent 10 jobs.
+
+- When filtering for skills with keywords, use the `job_listing_text` column. Also provide variations of the keyword (e.g., "data scientist", "data science", "data analysis").
+- When extracting job skills, use the `job_skills` column.
 - Extracting job skills, might result in repeated skills, make sure to count them and return the most common skills.
+
+- When filtering for experience level, use the `experience_level` column OR filter with 'junior', 'senior' in the `job_title`.
+- When filtering semantic columns, capture all possible variations the keyword (e.g., "junior data scientist", "JR. Data Scientist", "entry-level data scientist")
 """
 
 
@@ -96,10 +103,10 @@ class TaskPlan(BaseModel):
     """
 
     chain_of_thought: str = Field(
-        description="How will you answer the user_query using the pandas dataframe. Think step-by-step. Write down your chain of thought. Will you print the output? Will the code be free of bugs?",
+        description="How will you answer the user_query using the pandas dataframe. Think step-by-step. Write down your chain of thought and reasoning. What will you print as a result? Will the code be free of bugs?",
     )
     code_to_execute: str = Field(
-        description="Based on the previous reasoning, write bug-free code for the `python_repl` tool. Make sure to write code without bugs. Avoid import statements.",
+        description="Based on the previous reasoning, write bug-free code for the `python_repl` tool. Make sure to write code without bugs. Avoid import statements. Print the relevant columns.",
     )
     is_code_bug_free: bool = Field(
         description="Based on the previously generated code, answer with True if the code is safe and will run without issues. Answer False otherwise. Does it have extra indentations?",
@@ -114,6 +121,7 @@ class TaskPlan(BaseModel):
         result = self.execute_code()
         if "Error" in result or "Exception" in result:
             self.is_code_bug_free = False
+            logger.error(f"An error occurred: {result}")
             raise ValueError(f"An error occurred: {result}")
         logger.info(f"code execution result: {result}")
         self.result = result
@@ -127,7 +135,7 @@ pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', 30)
 pd.set_option('display.max_colwidth', 400)
 # Load the dataframe
-df = pd.read_pickle('data/extracted_cleaned_df.pkl')
+df = pd.read_pickle('data/extracted_cleaned_df_feb5.pkl')
 """
         code: str = import_and_load + self.code_to_execute
         logger.info(f"code to execute: {code}")
@@ -135,10 +143,12 @@ df = pd.read_pickle('data/extracted_cleaned_df.pkl')
         return result
 
 
-system_message_synthesiser = """- You are a world-class job counselor—your task is to understand the user question and give complete, helpful, and friendly answers.
+system_message_synthesiser = """- You are a world-class job counselor—your task is to understand the user question and give helpful, complete and friendly answers with the information you have.
+- To help you answer the user question, you will be given the result of a `python_repl` tool. The code was used over a Python Pandas Dataframe containing job listing data.
 - Use Markdown to format your answer. Use headings, bold, italics, and lists to make your answer easy to read.
-- To help you answer the user question, you will be given the code executed by a `python_repl` tool and its results. The code used a Python Pandas Dataframe containing job listing data.
-- Only provide a link/URL to the job board if the result has a link. Do not create new links/URLs.
-- If the question asks about a list of jobs, please return a maximum of the ten first jobs with a summary. 
+- Never provide a direct link to the job board. If given to you, provide the `jobs_towardsai_url` link for each job.
+- If the question asks about a list of jobs, please return a maximum of the twenty 20 first jobs with a summary. 
 - If you are listing jobs, also provide the jobs_towardsai_url link for each of them so users can access the job listing themselves.
+- If the python_repl did not produce a jobs_towardsai_url, do not link to any website, DO NOT create new links. 
+- If you did not received an URL, do not create a new one. Avoid "any you may explore the job listings on the website" or similar sentences.
 """
