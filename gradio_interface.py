@@ -45,8 +45,12 @@ def get_answer(query: str, chatbot):
         # response_model=instructor.Partial[cg.TaskPlan],
         response_model=cg.TaskPlan,
         stream=False,
-        max_retries=2,
+        max_retries=3,
     )
+    if isinstance(plan, str):
+        completion_string += f"\n{plan}"
+        yield completion_string
+        return
     completion_string += "\nPlan for the task:\n" + plan.model_dump_json(indent=2)
     end_plan = time.time()
     completion_string += f"\ntime taken for plan call and python execution: {end_plan - start_plan:0.2f} sec\n\n"
@@ -61,7 +65,7 @@ def get_answer(query: str, chatbot):
     response, error = api_function_call(
         system_message=cg.system_message_synthesiser,
         query=input,
-        model="gpt-3.5-turbo-0125",
+        model="gpt-4-0125-preview",
         stream=True,
     )
 
