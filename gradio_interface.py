@@ -56,23 +56,37 @@ def get_answer(query: str, chatbot):
     completion_string += f"\ntime taken for plan call and python execution: {end_plan - start_plan:0.2f} sec\n\n"
 
     input = (
-        f"user_question: {query} \n"
-        + f"python_code: {plan.code_to_execute}"
-        + f"repl_output: {plan.result} \n"
+        "REMEMBER: Give a complete answer to the user question and do not cut down you answer. If you are given 20 twenty urls, you must also output 20 twenty urls to the user\n"
+        + "Avoid short answers, avoid statements like '...and more.'. Provide a complete answer. User need to know about all the jobs available to them. Do not summarize.\n"
+        + f"user_question: {query} \n"
+        + f"python_code: {plan.code_to_execute} \n"
+        + f"repl_tool_output: {plan.result} \n\n"
+        + "REMEMBER: Make sure to give a complete answer to the user question and not cut down you answer. If the repl_tool has 20 urls, you must also output 20 urls to the user\n"
+        + "Do not make your answer concise, avoid statements like '...and more.'. Provide a complete answer. User need to know about all the jobs available to them. Do not summarize or cut down you answer.\n"
     )
+    logger.info(f"input to openai: {input}")
 
     start_second_call = time.time()
     response, error = api_function_call(
         system_message=cg.system_message_synthesiser,
         query=input,
-        model="gpt-4-0125-preview",
-        stream=True,
+        # model="gpt-4-0125-preview",
+        model="gpt-3.5-turbo-0125",
+        response_model=cg.SynthesiserResponse,
+        # response_model=instructor.Partial[cg.SynthesiserResponse],
+        # stream=True,
+        stream=False,
     )
 
     completion_string += "\n\nAnswering the user query:\n"
-    for token in response:
-        completion_string += token
-        yield completion_string
+    # for token in response:
+    # completion_string += token
+    # yield completion_string
+
+    # return_string = completion_string + str(token.model_dump())
+    # yield return_string
+
+    completion_string += "\n" + response.model_dump_json(indent=2)
 
     end = time.time()
     completion_string += (
@@ -80,6 +94,8 @@ def get_answer(query: str, chatbot):
     )
     completion_string += f"\ntime taken for whole process: {end - start:0.2f} sec"
     yield completion_string
+
+    yield "\n" + completion_string + "\n" + response.model_dump()["answer"]
 
 
 example_questions = [
@@ -124,3 +140,4 @@ with gr.Blocks(fill_height=True) as demo:
 
 demo.queue()
 demo.launch(debug=False, share=False, max_threads=CONCURRENCY_COUNT)
+# demo.launch(debug=False, share=False)

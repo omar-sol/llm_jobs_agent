@@ -77,7 +77,7 @@ salary_frequency: Literal["hourly", "monthly", "annually", "Not specified"]
 
 
 Here are some rules to follow:
-- You must use a print statement to display the output code. 
+- You must use a print statement to display the output code, create a dictionary with the results and print that dict.
 - If users ask for a list of jobs (rows in the dataframe), only include the relevant columns in the print statement but ALWAYS include the `jobs_towardsai_url` column. 
 - If users ask a list of jobs, sort them by `creation_date` and only include the most recent 20 jobs.
 - NEVER print the values in the `job_listing_text` column. only use it for filtering.
@@ -91,6 +91,8 @@ Here are some rules to follow:
 - When extracting job skills, use the `job_skills` column.
 - Extracting job skills, might result in repeated skills, make sure to count them and return the most common skills.
 
+- When filtering for job titles, use the `job_title` and `job_listing_text` column and provide variations of the keyword for both. (e.g., "data scientist", "data science", "data analysis").
+
 - When filtering for experience level, use the `experience_level` column OR filter with 'junior', 'senior' in the `job_title`.
 - When filtering semantic columns, capture all possible variations the keyword (e.g., "junior data scientist", "JR. Data Scientist", "entry-level data scientist")
 """
@@ -102,6 +104,9 @@ class TaskPlan(BaseModel):
     - You must use a print statement at the end to display the output but only print the relevant columns if necessary.
     """
 
+    user_query: str = Field(
+        description="The user query that you need to answer. This is the question you need to answer using the pandas dataframe.",
+    )
     chain_of_thought: str = Field(
         description="How will you answer the user_query using the pandas dataframe. Think step-by-step. Write down your chain of thought and reasoning. What will you print as a result? Will the code be free of bugs?",
     )
@@ -143,13 +148,34 @@ df = pd.read_pickle('data/extracted_cleaned_df_feb5.pkl')
         return result
 
 
-system_message_synthesiser = """- You are a world-class job counselor—your task is to understand the user question and give helpful, complete and friendly answers with the information you have.
-- To help you answer the user question, you will be given the result of a `python_repl` tool. The code was used over a Python Pandas Dataframe containing job listing data.
-- Users do not see the code or repl output. They will only see your answer.
-- Use Markdown to format your answer. Use headings, bold, italics, and lists to make your answer easy to read.
-- Never provide a direct link to the job board. If given to you, provide the `jobs_towardsai_url` link for each job.
-- If the question asks about a list of jobs, please return a maximum of the twenty 20 first jobs with a summary. 
+system_message_synthesiser = """- You are a world-class job counselor—your task is to answer the user question by giving helpful, complete and friendly answers with the all the information you have at your disposal.
+- To help you answer the user question, you have the executed Python code and the result. The code was used over a Python Pandas Dataframe containing job listing data.
+- Users do not see the code or its output. They will only see your answer.
+- Use Markdown to format your answer. Use headings, bold, italics, and lists to make your answer clear and easy to read.
+- Never provide a direct link to the job board. If given to you, provide each job's `jobs_towardsai_url` link.
+- If the question asks about a list of jobs, please answer ALL jobs with a summary.
 - If you are listing jobs, also provide the jobs_towardsai_url link for each of them so users can access the job listing themselves.
-- If the python_repl did not produce a jobs_towardsai_url, do not link to any website, DO NOT create new links. 
-- If you did not received an URL, do not create a new one. Avoid "any you may explore the job listings on the website" or similar sentences.
+- If the python_repl did not produce a jobs_towardsai_url, do not link to any website; DO NOT create new links.
+- If you did not received an URL, DO NOT share a new one. Avoid "and you may explore the job listings on the website" or similar sentences.
+- Make sure to answer with the full list of jobs if the user asks for it.
+- Provide all the information to the user, do not cut down your answer. If the repl_tool has 20 urls, you must also output 20 urls to the user.
+- If the repl_tool result is empty, state that there are no information available in our database.
 """
+
+
+class SynthesiserResponse(BaseModel):
+    """
+    Generates and answer to the user. User Markdown to format your answer. Use headings, bold, italics, and lists to make your answer clear and easy to read.
+    Make sure to give a complete answer within a single response.
+    If the repl_tool result is empty, state that there are no information available in our database.
+    """
+
+    chain_of_thought: str = Field(
+        description="Given the input, how will you answer the user question? Think step-by-step. Write down your chain of thought and reasoning.",
+    )
+    answer: str = Field(
+        description="Based on the previous reasoning, generate an answer to the user. Use Markdown to format the text.",
+    )
+    reason: str = Field(
+        description="Why did you answer the way you did?",
+    )
