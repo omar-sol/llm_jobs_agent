@@ -2,7 +2,6 @@ import os
 import logging
 import time
 
-import pandas as pd
 import gradio as gr
 import instructor
 
@@ -11,6 +10,7 @@ from execution_agent.call_openai_api import api_function_call
 
 
 CONCURRENCY_COUNT = int(os.getenv("CONCURRENCY_COUNT", 64))
+
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -56,13 +56,13 @@ def get_answer(query: str, chatbot):
     completion_string += f"\ntime taken for plan call and python execution: {end_plan - start_plan:0.2f} sec\n\n"
 
     input = (
-        "REMEMBER: Give a complete answer to the user question and do not cut down you answer. If you are given 20 twenty urls, you must also output 20 twenty urls to the user\n"
-        + "Avoid short answers, avoid statements like '...and more.'. Provide a complete answer. User need to know about all the jobs available to them. Do not summarize.\n"
+        "REMEMBER: That you are a job counselor. Give a complete answer to the user question and do not cut down you answer. If you are given 20 twenty urls, you must also output 20 twenty urls to the user\n"
+        + "Avoid short answers, avoid statements like '...and more.'. Provide a complete and helpful answer. User need to know about all the jobs available to them. Do not summarize your answer.\n"
         + f"user_question: {query} \n"
         + f"python_code: {plan.code_to_execute} \n"
         + f"repl_tool_output: {plan.result} \n\n"
-        + "REMEMBER: Make sure to give a complete answer to the user question and not cut down you answer. If the repl_tool has 20 urls, you must also output 20 urls to the user\n"
-        + "Do not make your answer concise, avoid statements like '...and more.'. Provide a complete answer. User need to know about all the jobs available to them. Do not summarize or cut down you answer.\n"
+        + "REMEMBER: Make sure to give a complete and useful answers to the user question and not cut down you answer. If the repl_tool has 20 urls, you must also output 20 urls to the user\n"
+        + "Avoid concise answers, avoid unhelpful statements such as '...and more.'. Provide a complete answers. User need to know about all the jobs available to them. Do not summarize or cut down you answer.\n"
     )
     logger.info(f"input to openai: {input}")
 

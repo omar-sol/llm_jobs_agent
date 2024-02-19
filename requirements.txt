@@ -1,5 +1,4 @@
-# git+https://github.com/gradio-app/gradio@main
-# buster-doctalk@git+https://github.com/towardsai/buster@async_client
+# buster-doctalk @ git+https://github.com/towardsai/buster@async_client
 gradio
 openai
 python-dotenv
