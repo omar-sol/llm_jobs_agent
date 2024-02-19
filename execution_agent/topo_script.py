@@ -11,57 +11,64 @@ client = instructor.patch(OpenAI())
 
 
 system_message = """- You are a world-class task-planning algorithm capable of breaking down user questions into a simple graph of tasks.
-- By executing every task, we can answer the user's question. 
+- By executing every task, you can answer the user's question.
 - Provide a correct compute graph with suitable specific tasks to ask and relevant subtasks. 
 - Before generating the list of tasks, think step by step to understand the problem better.
 - You have a Pandas dataframe at your disposal. Remember that some values might be None or NaN.
 - The name of the dataframe is `df.` and every value is lowercase.
 
-- Here are more details about the Dataframe, along with the ways you can filter each column, either 'precise' or 'semantic':
+Here are more details about the Dataframe, along with the ways you can filter each column, either `precise` or `semantic`:
+
 <class 'pandas.core.frame.DataFrame'>
-RangeIndex: 10609 entries, 0 to 10608
-Data columns (total 22 columns):
- #   Column                      Non-Null Count  Dtype  Type of filtering 
----  ------                      --------------  -----  -----------------  
- 0   job_title                   10609 non-null  object  semantic
- 1   job_skills                  10609 non-null  object  semantic
- 2   apply_url                   10609 non-null  object  precise
- 3   city                        9090 non-null   object  semantic
- 4   country                     9863 non-null   object  semantic
- 5   company_id                  10609 non-null  float64 precise
- 6   involves_ai                 10609 non-null  bool    precise 
- 7   jobs_towardsai_url          10609 non-null  object  precise
- 8   job_listing_text            10609 non-null  object  semantic
- 9   company_name                10608 non-null  object  precise
- 10  company_info                10609 non-null  object  semantic
- 11  role_description            10608 non-null  object  semantic
- 12  preferred_skills            6912 non-null   object  semantic
- 13  salary_currency             3238 non-null   object  precise
- 14  job_type_answer             8568 non-null   object  precise
- 15  experience_years            4360 non-null   float64 precise
- 16  experience_level            2792 non-null   object  precise
- 17  regions_or_states           3613 non-null   object  semantic
- 18  location_based_eligibility  1152 non-null   object  semantic
- 19  remote_answer               5981 non-null   object  precise
- 20  salary_min                  2886 non-null   float64 precise
- 21  salary_max                  2886 non-null   float64 precise
-dtypes: bool(1), float64(4), object(17)
+RangeIndex: 9105 entries, 0 to 9104
+Data columns (total 26 columns):
+ #   Column                Non-Null Count  Dtype   Type of filtering          
+---  ------                --------------  -----   -----------------       
+ 0   job_id                9105 non-null   int64   precise
+ 1   creation_date         9105 non-null   datetime64[ns]  precise
+ 2   job_title             9105 non-null   object  semantic        
+ 3   job_skills            9105 non-null   object  semantic      
+ 4   company_id            9105 non-null   int64   precise       
+ 5   apply_url             9105 non-null   object  precise      
+ 6   city                  7913 non-null   object  semantic      
+ 7   country               8814 non-null   object  semantic      
+ 8   involves_ai           9105 non-null   bool    precise      
+ 9   company_name          9105 non-null   object  precise      
+ 10  job_listing_text      9105 non-null   object  semantic      
+ 11  jobs_towardsai_url    9105 non-null   object  precise      
+ 12  company_info          9105 non-null   object  semantic      
+ 13  role_description      9105 non-null   object  semantic      
+ 14  preferred_skills      6395 non-null   object  semantic      
+ 15  salary_reasoning      8008 non-null   object  precise      
+ 16  salary_frequency      2688 non-null   object  precise      
+ 17  salary_currency       2924 non-null   object  precise      
+ 18  job_type_answer       8073 non-null   object  precise      
+ 19  min_experience_years  5995 non-null   object  precise      
+ 20  regions_or_states     5497 non-null   object  semantic      
+ 21  continent             8178 non-null   object  semantic      
+ 22  experience_level      5519 non-null   object  precise      
+ 23  remote_answer         4494 non-null   object  precise      
+ 24  salary_min            2405 non-null   float64 precise      
+ 25  salary_max            2405 non-null   float64 precise      
+dtypes: bool(1), datetime64[ns](1), float64(2), int64(2), object(20)
 memory usage: 1.7+ MB
 None
-(10609, 22)
+(9105, 26)
 
-- Here are the only valid values for some columns, which you can use to filter in a 'precise' way: 
+Here are the only valid values for some columns, which you can use to filter in a precise way: 
 remote_answer: Literal["remote", "hybrid", "onsite"]
 job_type_answer: Literal["full-time", "part-time", "contract", "internship", "freelance", "temporary", "other"]
 experience_level: Literal["senior", "mid-level", "entry-level"]
+salary_frequency: Literal["hourly", "monthly", "annually", "Not specified"]
 
-- You must use a print statement to display the output when generating code. 
+- When generating code, you must include a print statement to display the result. 
 - When computing the salary values, group computations over the same currency by checking the `salary_currency` column.
 - When computing over numerical values, make sure not to round the values.
 - Each task returns a result that the next task can use. That means you don't have to filter the dataframe multiple times for the same column.
 - A task cannot be 'semantic' and use a 'precise' column and vice versa.
 - A precise task that generates code cannot filter or use a 'semantic' column and vice versa.
-- Always return all the columns, not just the job_title, when asked for jobs."""
+- Always return all the columns, not just the job_title, when asked for jobs.
+"""
 
 
 class ValidationModel(BaseModel):
@@ -89,44 +96,41 @@ class TaskResults(BaseModel):
     results: List[TaskResult]
 
 
-class Precise(BaseModel):
-    """
-    Class representing the code to execute on the Pandas dataframe.
-    """
+# class Precise(BaseModel):
+#     """
+#     Class representing the code to execute on the Pandas dataframe.
+#     """
 
-    code: str = Field(
-        description="The code to execute on the Pandas dataframe. Make sure to return the dataframe at the end of the code.",
-    )
+#     code: str = Field(
+#         description="The code to execute on the Pandas dataframe. Make sure to return the dataframe at the end of the code.",
+#     )
 
 
-class Semantic(BaseModel):
-    """
-    Class representing the semantic task.
-    """
+# class Semantic(BaseModel):
+#     """
+#     Class representing the semantic task.
+#     """
 
-    text_to_embed: str = Field(
-        description="Sentence to embed if the task is semantic.",
-    )
-    column_to_filter: str = Field(
-        description="Column to filter on if the task is semantic.",
-    )
+#     text_to_embed: str = Field(
+#         description="Sentence to embed if the task is semantic.",
+#     )
+#     column_to_filter: str = Field(
+#         description="Column to filter on if the task is semantic.",
+#     )
 
 
 class Task(BaseModel):
     """
     Class representing a single task in a task plan.
-    Types of tasks:
-    - precise: Task needs numeric computation or precise string filtering to answer.
-    - semantic: Task needs semantic understanding to answer, such as filtering with unprecise strings.
     """
 
     id: int = Field(..., description="Unique id of the task")
-    task_type_reasoning: str = Field(
-        description="Explain how you can determine the task type. Think step-by-step. Write down your reasoning here.",
+    task_reasoning: str = Field(
+        description="Explain how you can determine the task to perform. Think step-by-step. Write down your reasoning here.",
     )
-
-    task_type: Precise | Semantic
-
+    task: str = Field(
+        description="Using the reasoning above, describe the task to perform.",
+    )
     tasks_to_before: List[int] = Field(
         default_factory=list,
         description="""List of the IDs of tasks that need to be executed before this question.""",
@@ -139,16 +143,22 @@ class Task(BaseModel):
 
         # We do nothing with the subtask answers, since this is an example however
         # we could use intermediate results to compute the answer to the main task.
-        return TaskResult(task_id=self.id, result=f"`{self.task_type}`")
+        return TaskResult(task_id=self.id, result=f"`{self.task}`")
 
 
 class TaskPlan(BaseModel):
     """
-    Generates a plan of tasks representing a tree of tasks and subtasks.
+    Generates a plan of tasks representing a tree of tasks and subtasks that will answer the user's query.
     Make sure every task is in the tree, and every task is done only once.
     """
 
-    validation_model: ValidationModel
+    # validation_model: ValidationModel
+    user_query: str = Field(
+        description="The user's query. This is the question you must answer with the task plan.",
+    )
+    task_plan_reasoning: str = Field(
+        description="Explain how you can determine the graph task plan. Think step-by-step. Write down your reasoning here.",
+    )
     task_graph: List[Task] = Field(
         ...,
         description="List of tasks and subtasks that need to be done to complete the main task. Consists of the main task and its dependencies.",
@@ -279,7 +289,8 @@ if __name__ == "__main__":
     }
     model = model_mapping[args.model]
 
-    query = "what is the average salary of senior data scientists?"
+    # query = "what is the average salary of senior data scientists?"
+    query = "What are the key differences between a data scientist and a data engineer?"
     print(query)
     print("model:", model)
 
