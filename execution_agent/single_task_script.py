@@ -1,5 +1,6 @@
 import argparse
 import time
+import logging
 
 import tiktoken
 import instructor
@@ -9,38 +10,23 @@ from rich.markdown import Markdown
 import single_task_models as cg
 from call_openai_api import api_function_call
 
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="OpenAI API interaction script")
     parser.add_argument("--query", type=str, required=False, help="Question to ask")
-    parser.add_argument(
-        "--model", default="gpt4", type=str, help="Model to use for the OpenAI API"
-    )
-    parser.add_argument(
-        "--max_retries",
-        type=int,
-        default=1,
-        help="Number of retries for the OpenAI API",
-    )
     return parser.parse_args()
-
-
-def get_model(model_name):
-    model_mapping = {
-        "gpt3.5": "gpt-3.5-turbo-0125",
-        "mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
-        "gpt4": "gpt-4-0125-preview",
-    }
-    return model_mapping[model_name]
 
 
 def main():
     args = parse_arguments()
-    model = get_model(args.model)
-    print("model:", model)
 
     # query = args.query
-    query = "What are the skills required for a senior computer vision engineer and how does that compare to a junior engineer?"
+    # query = "What are the skills required for a senior computer vision engineer and how does that compare to a junior engineer?"
+    query = "What are the key differences between a data scientist and a data engineer?"
     # query = "What is the meaning of life?"
     # query = "whats the average salary of junior data scientists"
     # query = "Which hybrid jobs require know how to fine-tuning LLMs"
@@ -58,70 +44,80 @@ def main():
 
     start_first_call = time.time()
     plan, error = api_function_call(
-        system_message=cg.system_message,
+        system_message=cg.system_message_plan,
         query=query,
-        model=model,
-        # response_model=cg.TaskPlan,
-        response_model=instructor.Partial[cg.TaskPlan],
-        max_retries=args.max_retries,
-        stream=True,
+        response_model=cg.TaskPlan,
+        # response_model=instructor.Partial[cg.TaskPlan],
+        max_retries=2,
+        # stream=True,
+        stream=False,
     )
 
-    console = Console()
-    for task in plan:
-        obj = task.model_dump()
-        console.clear()
-        console.print(obj)
+    if isinstance(plan, str):
+        print(plan)
+        return
 
-    # print(task.model_dump_json(indent=2))
-
+    print(plan.model_dump_json(indent=2))
+    logger.info(plan.model_dump_json(indent=2))
     end_first_call = time.time()
     print("time taken for first API call:", end_first_call - start_first_call)
     print("\n")
 
-    if task.query_validation.is_valid is False:
-        print("The query is not valid")
-        return
+    input = (
+        "REMEMBER: That you are a job counselor. Give a complete answer to the user question and do not cut down you answer. If you are given 20 twenty urls, you must also output 20 twenty urls to the user\n"
+        + "Avoid short answers, avoid statements like '...and more.'. Provide a complete and helpful answer. User need to know about all the jobs available to them. Do not summarize your answer.\n"
+        + f"user_question: {query} \n"
+        + f"python_code: {plan.code_to_execute} \n"
+        + f"repl_tool_output: {plan.result} \n\n"
+        + "REMEMBER: Make sure to give a complete and useful answers to the user question and not cut down you answer. If the repl_tool has 20 urls, you must also output 20 urls to the user\n"
+        + "Avoid concise answers, avoid unhelpful statements such as '...and more.'. Provide a complete answers. User need to know about all the jobs available to them. Do not summarize or cut down you answer.\n"
+    )
+    logger.info(f"input to openai: {input}")
 
-    start = time.time()
-    result = task.execute_code()
-    end = time.time()
-    print("time taken for code execution:", end - start)
-    print("\n")
+    response, error = api_function_call(
+        system_message=cg.system_message_synthesiser,
+        query=input,
+        # model="gpt-4-0125-preview",
+        model="gpt-3.5-turbo-0125",
+        # response_model=cg.SynthesiserResponse,
+        response_model=instructor.Partial[cg.SynthesiserResponse],
+        stream=True,
+        # stream=False,
+    )
 
-    if "Error" in result or "Exception" in result:
-        print(f"An error occurred: {result}")
-    else:
-        input = (
-            f"user_question: {query} \n"
-            + f"python_code: {task.code_to_execute}"
-            + f"repl_output: {result} \n"
-        )
+    # logger.info(response.model_dump_json(indent=2))
 
-        second_call_start = time.time()
-        response, error = api_function_call(
-            system_message=cg.system_message_synthesiser,
-            query=input,
-            model="gpt-3.5-turbo-0125",
-            max_retries=args.max_retries,
-            stream=False,
-        )
-        end = time.time()
+    console = Console()
+    for partial in response:
+        obj = partial.model_dump()
+        console.clear()
+        console.print(obj["answer"])
 
-        console = Console()
-        md = Markdown(response.choices[0].message.content)
-        console.print(md)
+    # console.print(Markdown(obj["answer"]))
 
-        print("time taken for second API call:", end - second_call_start)
-        print("time taken for whole process:", end - start_first_call)
+    #     second_call_start = time.time()
+    #     response, error = api_function_call(
+    #         system_message=cg.system_message_synthesiser,
+    #         query=input,
+    #         model="gpt-3.5-turbo-0125",
+    #         max_retries=args.max_retries,
+    #         stream=False,
+    #     )
+    #     end = time.time()
+
+    #     console = Console()
+    #     md = Markdown(response.choices[0].message.content)
+    #     console.print(md)
+
+    #     print("time taken for second API call:", end - second_call_start)
+    #     print("time taken for whole process:", end - start_first_call)
 
 
 if __name__ == "__main__":
     main()
 
-# TODO: Add validation for the generated code, retry when the code does not work
 # TODO: The variation in the keywords is too large, 'prompt engineering' is not the same as NLP engineer
-# TODO: Write a Python REPL tool that uses asyncio to run the code. + Use the async OpenAI client.
+# TODO: The result of code can be over 16k tokens, so we need to handle that.
 
 # Example of code error:
 """
@@ -131,7 +127,3 @@ WARNING:langchain_community.utilities.python:Python REPL can execute arbitrary c
 time taken for python execution: 0.04783201217651367
 An error occurred: TypeError("Cannot perform 'rand_' with a dtyped [bool] array and scalar of type [bool]")
 """
-
-
-# How can this be improved?
-# - The code generated can be improved by using a better model

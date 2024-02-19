@@ -42,7 +42,6 @@ def get_answer(query: str, chatbot):
     plan, error = api_function_call(
         system_message=cg.system_message_plan,
         query=query,
-        # response_model=instructor.Partial[cg.TaskPlan],
         response_model=cg.TaskPlan,
         stream=False,
         max_retries=3,
@@ -72,21 +71,20 @@ def get_answer(query: str, chatbot):
         query=input,
         # model="gpt-4-0125-preview",
         model="gpt-3.5-turbo-0125",
-        response_model=cg.SynthesiserResponse,
-        # response_model=instructor.Partial[cg.SynthesiserResponse],
-        # stream=True,
-        stream=False,
+        # response_model=cg.SynthesiserResponse,
+        response_model=instructor.Partial[cg.SynthesiserResponse],
+        stream=True,
+        # stream=False,
     )
 
     completion_string += "\n\nAnswering the user query:\n"
-    # for token in response:
-    # completion_string += token
-    # yield completion_string
 
-    # return_string = completion_string + str(token.model_dump())
-    # yield return_string
+    for partial in response:
+        obj = partial.model_dump()["answer"]
+        yield completion_string + str(obj)
 
-    completion_string += "\n" + response.model_dump_json(indent=2)
+    completion_string += obj
+    # completion_string += "\n" + response.model_dump_json(indent=2)
 
     end = time.time()
     completion_string += (
@@ -94,8 +92,6 @@ def get_answer(query: str, chatbot):
     )
     completion_string += f"\ntime taken for whole process: {end - start:0.2f} sec"
     yield completion_string
-
-    yield "\n" + completion_string + "\n" + response.model_dump()["answer"]
 
 
 example_questions = [
