@@ -164,6 +164,3 @@ cython_debug/
 *.json
 *.jsonl
 .env_tai
-tag_extraction/
-to_fix_extraction.md
-main.py
