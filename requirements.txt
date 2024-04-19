@@ -1,10 +1,11 @@
 # buster-doctalk @ git+https://github.com/towardsai/buster@async_client
-gradio
+modal
 openai
+instructor
+gradio
 python-dotenv
 pandas
 pyarrow
-instructor
 pydantic
 tiktoken
 ipykernel
@@ -13,3 +14,4 @@ llama-index
 langchain
 cohere
 numpy
+pymysql
