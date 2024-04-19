@@ -17,13 +17,13 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 def api_function_call(
     system_message,
     query: str,
-    model: str = "gpt-4-0125-preview",
+    model: str = "gpt-4-turbo",
     response_model=None,
     max_retries: int = 0,
     stream: bool = False,
 ):
 
-    client = instructor.patch(OpenAI())
+    client = instructor.from_openai(OpenAI())
     try:
         message_data = {
             "model": model,
