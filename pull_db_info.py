@@ -59,11 +59,11 @@ def load_and_clean_data():
     # Drop rows with missing 'cleaned_description' values
     df.dropna(subset=["cleaned_description"], inplace=True)
 
-    # Rename the 'cleaned_description' column to 'content'
-    df.rename(columns={"cleaned_description": "content"}, inplace=True)
+    # Rename the 'cleaned_description' column to 'job_listing_text'
+    # df.rename(columns={"cleaned_description": "job_listing_text"}, inplace=True)
 
-    # Count the number of tokens in the 'content' column, for each row
-    df["num_tokens"] = df["content"].apply(
+    # Count the number of tokens in the 'cleaned_description' column, for each row
+    df["num_tokens"] = df["cleaned_description"].apply(
         lambda x: num_tokens_from_string(x, "cl100k_base")
     )
     # Drop rows with too many tokens
@@ -183,7 +183,7 @@ def create_local_db():
     # setup_ssh_for_git(os.getenv("SSH_PRIVATE_KEY", ""))
     # clone_repo()
     df = load_and_clean_data()
-    df.to_json("db_info.json", orient="records", lines=False, indent=4)
+    df.to_json("data/db_info.json", orient="records", lines=False, indent=4)
     logger.info("Dataframe saved to db_info.json")
 
     # upload_to_vector_store(df, DATASET_LOCAL_PATH)
