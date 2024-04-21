@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-# Set paths to local file
+
 DATASET_LOCAL_PATH = "local_db.json"
 
 stub = modal.Stub(name="create_local_db")
@@ -103,7 +103,7 @@ def get_data_from_db():
         j.salary_min as salary_min,
         j.salary_max as salary_max,
         j.salary_currency as salary_currency,
-        CONCAT('https://jobs.towardsai.net/job/', j.slug) as jobs_towardsai_url,
+        j.slug as url_slug,
         j.description as role_description,
         c.name as company_name,
         c.description as company_description,
