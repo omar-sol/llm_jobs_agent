@@ -15,7 +15,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 def api_function_call(
-    system_message,
+    system_message: str,
     query: str,
     model: str = "gpt-4-turbo",
     response_model=None,
