@@ -1,11 +1,11 @@
 # buster-doctalk @ git+https://github.com/towardsai/buster@async_client
 modal
 openai
+anthropic
 instructor
 gradio
 python-dotenv
 pandas
-pyarrow
 pydantic
 tiktoken
 ipykernel
