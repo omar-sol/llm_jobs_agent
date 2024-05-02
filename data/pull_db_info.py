@@ -11,7 +11,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 DATASET_LOCAL_PATH = "local_db.json"
 
-stub = modal.Stub(name="create_local_db")
+app = modal.App(name="create_local_db")
 
 image = (
     modal.Image.debian_slim(python_version="3.11.8", force_build=False)
@@ -108,6 +108,7 @@ def get_data_from_db():
         c.name as company_name,
         c.description as company_description,
         s.cleaned_description as cleaned_description,
+        s.openai_description as openai_description,
         s.skills_required as scraped_skills_required,
         s.skills_useful as scraped_skills_useful
     FROM jobs j
@@ -168,7 +169,7 @@ def run_git_commands():
         raise
 
 
-@stub.function(
+@app.function(
     image=image,
     secrets=[
         modal.Secret.from_name("mysql-secret-jobs"),
@@ -196,6 +197,6 @@ def create_local_db():
 # During Eastern Daylight Time (EDT): 3:00 p.m. UTC - 4 hours = 11:00 a.m. EDT
 # runs at 11:00 a.m. (EDT) every Monday
 # @stub.function(schedule=modal.Cron("0 15 * * 1"))
-@stub.local_entrypoint()
+@app.local_entrypoint()
 def scheduled_main():
     create_local_db.local()
