@@ -4,6 +4,8 @@ import time
 
 import gradio as gr
 import instructor
+from rich.console import Console
+from rich.markdown import Markdown
 
 import execution_agent.single_task_models as cg
 from execution_agent.call_openai_api import api_function_call
@@ -19,76 +21,86 @@ logging.basicConfig(level=logging.INFO)
 def get_answer(query: str, chatbot):
     start = time.time()
 
-    query_validation, error = api_function_call(
-        system_message=cg.system_message_validation,
-        query=query,
-        model="gpt-3.5-turbo-0125",
-        response_model=cg.QueryValidation,
-    )
-    end_validation = time.time()
+    completion_string = ""
 
-    completion_string = "Validating query:\n" + query_validation.model_dump_json(
-        indent=2
-    )
-    completion_string += f"\ntime taken for validation call: {end_validation - start:0.2f} sec\n\n Generating a plan ..."
+    # query_validation, error = api_function_call(
+    #     system_message=cg.system_message_validation,
+    #     query=query,
+    #     model="gpt-3.5-turbo-0125",
+    #     response_model=cg.QueryValidation,
+    # )
+    # end_val_time = time.time()
+
+    # completion_string = "Validating query:\n" + query_validation.model_dump_json(
+    #     indent=2
+    # )
+    # completion_string += f"\ntime taken for validation call: {end_val_time - start:0.2f} sec\n"
+    # yield completion_string
+
+    # if query_validation.is_valid is False:
+    #     completion_string += "\nThe query is not valid"
+    #     yield completion_string
+    #     return
+
+    start_plan_time = time.time()
+    completion_string += f"Generating plan for the query...\n"
     yield completion_string
 
-    if query_validation.is_valid is False:
-        completion_string += "\nThe query is not valid"
-        yield completion_string
-        return
-
-    start_plan = time.time()
     plan, error = api_function_call(
         system_message=cg.system_message_plan,
         query=query,
+        model="gpt-4-turbo",
         response_model=cg.TaskPlan,
         stream=False,
-        max_retries=3,
+        max_retries=2,
     )
     if isinstance(plan, str):
-        completion_string += f"\n{plan}"
+        completion_string += f"\n{plan}"  # Error message
         yield completion_string
         return
+
     completion_string += "\nPlan for the task:\n" + plan.model_dump_json(indent=2)
-    end_plan = time.time()
-    completion_string += f"\ntime taken for plan call and python execution: {end_plan - start_plan:0.2f} sec\n\n"
+    end_plan_time = time.time()
+    completion_string += f"\ntime taken for plan call and python execution: {end_plan_time - start_plan_time:0.2f} sec\n\n"
+    yield completion_string
 
-    input = (
-        "REMEMBER: That you are a job counselor. Give a complete answer to the user question and do not cut down you answer. If you are given 20 twenty urls, you must also output 20 twenty urls to the user\n"
-        + "Avoid short answers, avoid statements like '...and more.'. Provide a complete and helpful answer. User need to know about all the jobs available to them. Do not summarize your answer.\n"
-        + f"user_question: {query} \n"
-        + f"python_code: {plan.code_to_execute} \n"
-        + f"repl_tool_output: {plan.result} \n\n"
-        + "REMEMBER: Make sure to give a complete and useful answers to the user question and not cut down you answer. If the repl_tool has 20 urls, you must also output 20 urls to the user\n"
-        + "Avoid concise answers, avoid unhelpful statements such as '...and more.'. Provide a complete answers. User need to know about all the jobs available to them. Do not summarize or cut down you answer.\n"
+    synthesiser_prompt = cg.synthesiser_prompt.format(
+        query=query,
+        code_to_execute=plan.code_to_execute,
+        result=plan.result,
+        url_slugs=plan.url_slugs,
     )
-    logger.info(f"input to openai: {input}")
+    logger.info(f"synthesiser prompt: {synthesiser_prompt}")
 
-    start_second_call = time.time()
+    completion_string += "\n\nGenerating final answer for query...\n"
+    yield completion_string
+
+    start_synth_time = time.time()
     response, error = api_function_call(
         system_message=cg.system_message_synthesiser,
-        query=input,
-        # model="gpt-4-0125-preview",
-        model="gpt-3.5-turbo-0125",
+        query=synthesiser_prompt,
+        model="gpt-4-turbo",
         # response_model=cg.SynthesiserResponse,
-        response_model=instructor.Partial[cg.SynthesiserResponse],
         stream=True,
-        # stream=False,
     )
 
-    completion_string += "\n\nAnswering the user query:\n"
+    # console = Console()
+    # for partial in response:
+    #     console.clear()
+    #     console.print(partial)
+    # yield completion_string + str(partial.answer)
 
-    for partial in response:
-        obj = partial.model_dump()["answer"]
-        yield completion_string + str(obj)
-
-    completion_string += obj
+    # completion_string += obj
     # completion_string += "\n" + response.model_dump_json(indent=2)
+    # completion_string += "\n\n" + response.answer
+    # completion_string += "\n\n" + response.choices[0].message.content
+    for token in response:
+        completion_string += token
+        yield completion_string
 
     end = time.time()
     completion_string += (
-        f"\n\ntime taken for answer call: {end - start_second_call:0.2f} sec"
+        f"\n\ntime taken for answer call: {end - start_synth_time:0.2f} sec"
     )
     completion_string += f"\ntime taken for whole process: {end - start:0.2f} sec"
     yield completion_string
@@ -131,7 +143,7 @@ with gr.Blocks(fill_height=True) as demo:
         chatbot=chatbot,
         examples=example_questions,
         fill_height=True,
-        title="Jobs Database Chatbot- BETA",
+        # title="Jobs Database Chatbot- BETA",
     )
 
 demo.queue()
