@@ -21,6 +21,7 @@ def api_function_call(
     response_model=None,
     max_retries: int = 0,
     stream: bool = False,
+    max_tokens: int = 4000,
 ):
 
     client = instructor.from_openai(OpenAI())
@@ -33,12 +34,18 @@ def api_function_call(
             ],
             "max_retries": max_retries,
             "stream": stream,
+            "max_tokens": max_tokens,
+            "response_model": response_model,
         }
-        if response_model is not None:
-            message_data["response_model"] = response_model
+        # if response_model is not None:
+        # message_data["response_model"] = response_model
 
-        response = client.chat.completions.create(**message_data)
-        error = False
+        if stream and response_model is not None:
+            response = client.chat.completions.create_partial(**message_data)
+            error = False
+        else:
+            response = client.chat.completions.create(**message_data)
+            error = False
 
     except openai.BadRequestError:
         error = True
