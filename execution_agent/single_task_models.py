@@ -212,3 +212,18 @@ repl_tool_output: {result}
 REMEMBER: That you are a job counselor. Give a complete answer to the user question. If you are given 20 twenty urls, you must also output 20 twenty urls in your answer.
 Avoid short answers, avoid statements like '...and more.'. Users need to know about all the jobs available to them. Do not summarize your answer.
 """
+
+
+# TODO:
+# for the DB info on SQL, I need to check all the possible values for each column
+# for requirement remote, the LLM does not know which column to filter on e.g. it looks into 'city' and 'country' columns
+
+# Fix the salaries for the SQL DB.
+
+# Looking into LLM Engineers should be done by looking with 'LLM' and 'Engineer' separately in the job title + cleaned description
+# Maybe even in skills section
+
+# How to properly evaluate the system?
+# Right it seems to be mostly about tuning the prompt, where the LLM should look to get answer.
+# If the columns were clearer, the LLM would be able to answer better?
+# Like the data properly formatted in separate columns.

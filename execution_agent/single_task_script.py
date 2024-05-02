@@ -100,13 +100,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# for the DB info on SQL, I need to check all the possible values for each column
-# for requirement remote, the LLM does not know which column to filter on e.g. it looks into 'city' and 'country' columns
-
-# Fix the salaries for the SQL DB.
-
-# Looking into LLM Engineers should be done by looking with 'LLM' and 'Engineer' separately in the job title + cleaned description
-
-# How to properly evaluate the system?
