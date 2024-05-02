@@ -26,13 +26,12 @@ class QueryValidation(BaseModel):
     )
 
 
-system_message_plan = """You are a world-class task-planning algorithm and developer capable of breaking down user questions into a solvable snippet of code.
+system_message_plan = """You are a world-class task-planning algorithm and developer capable of breaking down user questions into a solvable snippet of Python code.
 You have a Pandas dataframe at your disposal. Remember that some values might be `None` or `NaN`.
 The name of the dataframe is `df` and you are case insensitive.
 Remember: You cannot subset columns with a tuple with more than one element. Use a list instead.
 
-
-The file's field headings and a brief description for each are as follows:
+Here are the headings and a brief description for each:
 * job_id: A unique identifier for each job listing.
 * created_at: The timestamp of the job listing creation date.
 * job_title: The title of the job position.
@@ -53,7 +52,6 @@ The file's field headings and a brief description for each are as follows:
 * cleaned_description: A full version of the job description text.
 * scraped_skills_required: Skills required for the job (this only has data for some jobs).
 * scraped_skills_useful: Skills that are useful but not necessarily required for the job (this only has data for some jobs).
-
 
 Here are more details created with df.info():
 
@@ -86,9 +84,11 @@ dtypes: datetime64[ns](1), int64(4), object(15)
 memory usage: 1.2+ MB
 None
 
+
 Here are some rules to follow:
-- You must use a print statement to display the output code exectution result, create a dictionary with the relevant results, and print that dict.
-- If users ask for a list of jobs (rows in the dataframe), ALWAYS include the `url_slug,` `role_description`, and `company_description` columns in the print statement. 
+- You must use a print statements to display relevant execution results, by the end of the script, create a dictionary with the relevant results, and print that dict.
+- If users ask for a list of jobs (rows in the dataframe), ALWAYS include the `job_title`, `role_description`, `city` columns in the print statement. Then store the `url_slug` in the global variable `slugs`.
+- Make sure to declare the global variable `slugs` at the beginning of the script.
 - If users ask for a list of jobs, sort them by `creation_date` and only include the most recent 20 twenty jobs.
 - NEVER print the values in the `cleaned_description` column. Only use it for filtering.
 
@@ -105,6 +105,7 @@ Here are some rules to follow:
 - When filtering for experience level, use the `experience_level` column OR filter with 'junior', 'senior' in the `job_title`. 
 
 - When filtering semantic columns, capture all possible variations of the keyword (e.g., "junior data scientist", "jr. data scientist", "entry-level data scientist")
+- When looking for remote jobs, filter the `job_type` column. 
 """
 
 
@@ -130,20 +131,28 @@ class TaskPlan(BaseModel):
         default="",
         description="The result of the code execution. If the code has not been executed yet, leave this field empty.",
     )
+    url_slugs: list = Field(
+        default=[],
+        description="The url slugs of the jobs that are relevant to the user query. If the code has not been executed yet, leave this field empty.",
+    )
 
     @model_validator(mode="after")
     def verify_code(self):
-        result = self.execute_code()
+        logger.info("Verifying code")
+        result, url_slugs = self.execute_code()
         if "Error" in result or "Exception" in result:
             self.is_code_bug_free = False
             logger.error(f"An error occurred: {result}")
             raise ValueError(f"An error occurred: {result}")
         logger.info(f"code execution result: {result}")
+        logger.info(f"url slugs: {url_slugs}")
         self.result = result
+        self.url_slugs = url_slugs
         return self
 
-    def execute_code(self) -> str:
-        python_repl = PythonREPL()
+    def execute_code(self):
+        globals_dict = {"slugs": None}
+        python_repl = PythonREPL(_globals=globals_dict)
         import_and_load = """import pandas as pd
 import numpy as np
 pd.set_option('display.max_rows', 100)
@@ -153,21 +162,23 @@ pd.set_option('display.max_colwidth', 400)
 df = pd.read_json('data/db_info.json')
 """
         code: str = import_and_load + self.code_to_execute
-        logger.info(f"code to execute: {code}")
+        logger.info(f"code to execute: \n{code}")
         result: str = python_repl.run(code)
-        return result
+        return result, python_repl.globals["slugs"]
 
 
-system_message_synthesiser = """- You are a world-class job counselor—your task is to answer the user question by giving helpful, complete, and friendly answers with all the information you have at your disposal.
-- To help you give a complete answer to the user question, you have the executed Python code and the result. The code was used over a Python Pandas Dataframe containing job listing data.
-- Users do not see the code or its output. They will only see your answer. So, use the code output to generate a complete and helpful reply.
+system_message_synthesiser = """- You are a world-class job counselor—your task is to answer the user query in a way that is helpful, complete, and friendly. 
+- The answer must include all the information you have at your disposal.
+- At your disposal, you have the results of executed Python code, and sometimes the url slugs of the jobs postings that are relevant to the user query. 
+- The executed code was used a Python Pandas Dataframe containing job listing data.
+- Users do not see the code or its output. They only see your answer. Use the information to generate a complete and helpful reply.
 - Use Markdown to format your answer. Use headings, bold, italics, and lists to make your answer clear and easy to read.
-- If the question asks about a list of jobs, please answer ALL jobs with a summary.
+- If the question asks about a list of jobs, please answer with a summary and then job title for each job.
 - If you are providing a list of jobs, also provide an URL link to the job listing by appending the `url_slug` to the string 'https://jobs.towardsai.net/job/'
-- If the python_repl did not produce a `url_slug`, do not link to any website; DO NOT create new links.
+- If the python_repl did not produce a `url_slug`, DO NOT link to any website; DO NOT create new links.
 - If you didn't receive a `url_slug`, DO NOT share a new one. Avoid using, "and you may explore the job listings on the website" or similar sentences.
-- Make sure to answer with the complete list of jobs if the user asks for it.
-- Provide the user with all the information; do not cut down your answer. If the repl_tool has 20 `url_slug`, you must also output 20 links to the user. with 'https://jobs.towardsai.net/job/'+ slug_url
+- Make sure to answer with the complete list of jobs.
+- Provide the user with all the information; do not cut down your answer. If you have 20 `url_slug` values, you must also output 20 links to the user. with 'https://jobs.towardsai.net/job/'+ slug_url
 - If the repl_tool result is empty, state that no information is available in our database.
 """
 
@@ -175,28 +186,29 @@ system_message_synthesiser = """- You are a world-class job counselor—your tas
 class SynthesiserResponse(BaseModel):
     """
     Generate and answer to the user. Use Markdown to format your answer. Use headings, bold, italics, and lists to make your answer clear and easy to read.
-    Make sure to give a complete and helpful answer within a single response.
+    Make sure to give a complete and helpful answer.
     If the repl_tool result is empty, state that no information is available in our database.
     """
 
     chain_of_thought: str = Field(
-        description="Given the input, how will you answer the user question? Think step-by-step. Write down your chain of thought and reasoning.",
+        description="Given the information, how will you answer the user query? Think step-by-step. Write down your chain of thought and reasoning.",
     )
     answer: str = Field(
-        description="Based on the previous reasoning, generate a complete and helpful answer to the user. Use Markdown to format the text.",
+        description="Answer given to the user. Based on the previous reasoning, generate a complete and helpful answer to the user. Use Markdown to format the text.",
     )
-    reason: str = Field(
-        description="Why did you answer the way you did?",
+    reflect: str = Field(
+        description="Did you give a complete answer? How many jobs did you list in your answer?",
     )
 
 
-synthesiser_prompt = """
-REMEMBER: That you are a job counselor. Give a complete answer to the user question and do not cut down your answer. If you are given 20 twenty urls, you must also output 20 twenty urls to the user
-Avoid short answers, avoid statements like '...and more.'. Provide a complete and helpful answer. User need to know about all the jobs available to them. Do not summarize your answer.
-user_question: {query} 
-python_code: {code_to_execute} 
+# python_code: {code_to_execute}
+
+synthesiser_prompt = """user_query: {query}
+
+url_slugs: {url_slugs}
+
 repl_tool_output: {result} 
 
-REMEMBER: Make sure to give a complete and useful answers to the user question and not cut down your answer. If the repl_tool has 20 urls, you must also output 20 urls to the user
-Avoid concise answers, avoid unhelpful statements such as '...and more.'. Provide a complete answers. User need to know about all the jobs available to them. Do not summarize or cut down your answer.
+REMEMBER: That you are a job counselor. Give a complete answer to the user question. If you are given 20 twenty urls, you must also output 20 twenty urls in your answer.
+Avoid short answers, avoid statements like '...and more.'. Users need to know about all the jobs available to them. Do not summarize your answer.
 """
