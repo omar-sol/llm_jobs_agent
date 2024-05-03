@@ -214,16 +214,16 @@ Avoid short answers, avoid statements like '...and more.'. Users need to know ab
 """
 
 
-# TODO:
-# for the DB info on SQL, I need to check all the possible values for each column
-# for requirement remote, the LLM does not know which column to filter on e.g. it looks into 'city' and 'country' columns
-
+# TODO: Extract correct info from cleaned_description, in the same db_info.json, just add more values to the dict
 # Fix the salaries for the SQL DB.
+# Tell the LLM what are the possible values for each column
+# e.g for requirement remote, the LLM does not know which column to filter on e.g. it looks into 'city' and 'country' columns
+
+# TODO: How to properly evaluate the system?
+# Fixes are mostly about tuning the prompt, where the LLM should look to get answer?
+# If the columns(DATA) were clearer/cleaner, the LLM would be able to answer better.
 
 # Looking into LLM Engineers should be done by looking with 'LLM' and 'Engineer' separately in the job title + cleaned description
 # Maybe even in skills section
 
-# How to properly evaluate the system?
-# Right it seems to be mostly about tuning the prompt, where the LLM should look to get answer.
-# If the columns were clearer, the LLM would be able to answer better?
-# Like the data properly formatted in separate columns.
+# TODO: Setup pydantic logfire
